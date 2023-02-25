@@ -7,5 +7,5 @@ COPY pyproject.toml pyproject.toml
 COPY tests tests
 COPY asyncio_task_queues asyncio_task_queues
 RUN pip install ".[dev]"
+RUN black --check .
 RUN pytest tests
-

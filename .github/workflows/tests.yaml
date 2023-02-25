@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  "run-tests":
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: [3.5, 3.6, 3.7, 3.8, 3.9, 3.10]
+    steps:
+      - name: check out repo
+        uses: actions/checkout@v3
+
+      - name: run docker container
+        run: docker build --build-arg PYTHON_VERSION=${{matrix.python-version}} --file test.Dockerfile
