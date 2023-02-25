@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asyncio_task_queues"
+authors = []
+description = "Python asyncio-compatible distributed task queues"
+readme = "README.md"
+requires-python = ">=3.5"
+classifiers = []
+dependencies = []
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["black", "click", "fastapi", "isort", "pytest", "redis"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests"
+]

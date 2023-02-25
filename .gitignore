@@ -1,0 +1,13 @@
+.vscode
+*.code-workspace
+
+*.pyc
+*.egg-info
+
+/*
+!/asyncio_task_queues
+!/tests
+!/.gitignore
+!/Dockerfile
+!/pyproject.toml
+!/setup.py
