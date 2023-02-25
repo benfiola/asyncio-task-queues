@@ -9,7 +9,7 @@ classifiers = []
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["black", "click", "fastapi", "isort", "pytest", "redis"]
+dev = ["black", "build", "click", "fastapi", "isort", "pytest", "redis", "twine"]
 
 [project.urls]
 Source = "https://github.com/benfiola/asyncio-task-queues.git"
