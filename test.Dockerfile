@@ -4,8 +4,10 @@ WORKDIR /app
 
 COPY setup.py setup.py
 COPY pyproject.toml pyproject.toml
+COPY README.md README.md
 COPY tests tests
 COPY asyncio_task_queues asyncio_task_queues
 RUN pip install ".[dev]"
+
 RUN black --check .
 RUN pytest tests

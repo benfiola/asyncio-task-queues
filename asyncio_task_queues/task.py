@@ -17,7 +17,7 @@ class Task(Generic[SignaturePS, SignatureRV, TaskQueue]):
         *,
         id: str,
         queue: TaskQueue,
-        signature: Signature[SignaturePS, SignatureRV]
+        signature: Signature[SignaturePS, SignatureRV],
     ):
         self.id = id
         self.queue = self.convert_queue(queue)
