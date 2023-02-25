@@ -13,3 +13,4 @@
 !/README.md
 !/setup.py
 !/test.Dockerfile
+!/test.sh

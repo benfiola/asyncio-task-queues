@@ -20,10 +20,10 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        python-version: [3.5, 3.6, 3.7, 3.8, 3.9, 3.10]
+        python-version: ["3.5", "3.6", "3.7", "3.8", "3.9", "3.10"]
     steps:
       - name: check out repo
         uses: actions/checkout@v3
 
-      - name: run docker container
-        run: docker build --build-arg PYTHON_VERSION=${{matrix.python-version}} --file test.Dockerfile
+      - name: run test script
+        run: ./test.sh ${{matrix.python-version}}
