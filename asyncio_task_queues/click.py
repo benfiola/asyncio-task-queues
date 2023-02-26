@@ -1,3 +1,5 @@
+import asyncio
+
 import click
 import click.core
 
@@ -16,4 +18,4 @@ class Group(click.core.Group):
             self.add_command(click.Command(name=name, callback=callback))
 
     def ping(self):
-        click.echo("pong")
+        click.echo(asyncio.run(self.app.ping()))

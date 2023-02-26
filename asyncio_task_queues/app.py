@@ -1,2 +1,3 @@
 class App:
-    pass
+    async def ping(self) -> str:
+        return "pong"

@@ -16,4 +16,4 @@ class APIRouter(fastapi.routing.APIRouter):
             self.add_api_route(path=path, endpoint=endpoint, methods=methods)
 
     async def ping(self) -> str:
-        return "pong"
+        return await self.app.ping()
