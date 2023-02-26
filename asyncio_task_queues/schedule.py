@@ -1,7 +1,7 @@
 import datetime
 import re
 
-from asyncio_task_queues.types import Optional
+from asyncio_task_queues.types import List, Optional, Set, Tuple
 
 _re_cron_step = re.compile(r"^(.*)/(\d+)$")
 _re_cron_range = re.compile(r"^(\d+)-(\d+)$")
@@ -10,12 +10,12 @@ _re_cron_digit = re.compile(r"^(\d+)$")
 
 
 class Schedule:
-    seconds: set[int]
-    minutes: set[int]
-    hours: set[int]
-    days: set[int]
-    months: set[int]
-    weekdays: set[int]
+    seconds: Set[int]
+    minutes: Set[int]
+    hours: Set[int]
+    days: Set[int]
+    months: Set[int]
+    weekdays: Set[int]
 
     type: str
     value: str
@@ -46,14 +46,14 @@ class Schedule:
         if not num_parts in valid_num_parts:
             raise error(f"invalid num parts: {num_parts} != {valid_num_parts}")
 
-        meta: list[tuple[set[int], int, int]] = [
+        meta: List[Tuple[Set[int], int, int]] = [
             (self.seconds, 0, 59),
             (self.minutes, 0, 59),
             (self.hours, 0, 59),
             (self.days, 1, 31),
             (self.months, 1, 12),
             (self.weekdays, 0, 6),
-        ][:-num_parts]
+        ][-num_parts:]
 
         for part, (values, min, max) in zip(parts, meta):
             for subpart in part.split(","):
@@ -87,6 +87,8 @@ class Schedule:
 
                 for value in range(start, stop + 1, step):
                     values.add(value)
+        if not self.seconds:
+            self.seconds.add(0)
 
     def build(self):
         if self.type == "cron":

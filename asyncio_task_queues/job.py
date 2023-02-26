@@ -17,8 +17,29 @@ class Job:
     id: str
     signature: Signature
     queue: str
-    status: Status
     return_value: Any
-    time_completed: datetime.datetime
-    time_enqueued: Optional[datetime.datetime]
+    status: Status
+    time_completed: Optional[datetime.datetime]
+    time_enqueued: datetime.datetime
     time_started: Optional[datetime.datetime]
+
+    def __init__(
+        self,
+        *,
+        id: str,
+        signature: Signature,
+        queue: str,
+        return_value: Any,
+        status: Status,
+        time_completed: Optional[datetime.datetime],
+        time_enqueued: datetime.datetime,
+        time_started: Optional[datetime.datetime]
+    ):
+        self.id = id
+        self.signature = signature
+        self.queue = queue
+        self.return_value = return_value
+        self.status = status
+        self.time_completed = time_completed
+        self.time_enqueued = time_enqueued
+        self.time_started = time_started
