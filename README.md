@@ -2,6 +2,8 @@
 
 _asyncio-task-queues_ is an asyncio-compatible, simple distributed task queue system written in python
 
+NOTE: Still in very early stages.
+
 ---
 
 **Documentation**: [https://benfiola.github.io/asyncio-task-queues/](https://benfiola.github.io/asyncio-task-queues/)

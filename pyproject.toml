@@ -1,6 +1,6 @@
 [project]
 name = "asyncio_task_queues"
-version = "0.0.2"
+version = "0.0.3"
 authors = [{ name = "Ben Fiola", email = "benfiola@gmail.com" }]
 description = "Python asyncio-compatible distributed task queues"
 readme = "README.md"
@@ -18,3 +18,6 @@ Source = "https://github.com/benfiola/asyncio-task-queues.git"
 testpaths = [
     "tests"
 ]
+
+[tool.setuptools]
+packages = ["asyncio_task_queues"]
