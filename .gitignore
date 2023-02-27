@@ -10,10 +10,11 @@
 !/docs
 !/tests
 !/.gitignore
-!/dev.Dockerfile
-!/dev.entrypoint.sh
-!/dev.sh
+!/docker.sh
+!/Dockerfile
+!/docs.sh
 !/mkdocs.yml
 !/pyproject.toml
 !/README.md
 !/setup.py
+!/tests.sh
