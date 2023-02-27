@@ -30,6 +30,12 @@ NOTE: Still in very early stages.
   - _Enum_-backed Queue typehints and warnings
   - _Protocol_-based event callbacks
 
+## Installation
+
+```shell
+python -m pip install asyncio-task-queues
+```
+
 ## Quickstart
 
 ```python
