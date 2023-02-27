@@ -9,4 +9,4 @@ python_version="${PYTHON_VERSION:-3.9}"
 echo "building dev image (python version: ${python_version})"
 image="$(docker build --quiet --file "${dockerfile}" --build-arg "PYTHON_VERSION=${python_version}" .)"
 echo "build finished (image: ${image})"
-docker run --rm --interactive --tty --volume "$(pwd)/site:/app/site" "${image}" $@
+docker run --rm --volume "$(pwd)/site:/app/site" "${image}" $@
