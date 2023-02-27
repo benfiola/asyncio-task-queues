@@ -12,7 +12,7 @@ from asyncio_task_queues.event import (
 from asyncio_task_queues.job import Job, Status
 from asyncio_task_queues.middleware import Middleware
 from asyncio_task_queues.task import ScheduledTask
-from asyncio_task_queues.types import List, Optional, Set
+from asyncio_task_queues.types import Any, Dict, List, Optional, Set, TypeVar
 
 
 class Worker:
@@ -25,7 +25,8 @@ class Worker:
     queues: Set[str]
     scheduled_tasks: List[ScheduledTask]
     stopped: bool
-    tasks_jobs: Set[asyncio.Task]
+    tasks_jobs: Dict[str, asyncio.Task]
+    tasks_job_monitors: Set[asyncio.Task]
     tasks_schedulers: Set[asyncio.Task]
 
     def __init__(
@@ -55,7 +56,8 @@ class Worker:
         self.queues = queues
         self.scheduled_tasks = scheduled_tasks
         self.stopped = False
-        self.tasks_jobs = set()
+        self.tasks_jobs = {}
+        self.tasks_job_monitors = set()
         self.tasks_schedulers = set()
 
     async def handle_signal_async(self, signal: Signals):
@@ -68,8 +70,8 @@ class Worker:
 
     async def install_signal_handlers(self):
         loop = asyncio.get_running_loop()
-        loop.add_signal_handler(SIGINT, self.handle_signal)
-        loop.add_signal_handler(SIGTERM, self.handle_signal)
+        loop.add_signal_handler(SIGINT, lambda: self.handle_signal(SIGINT))
+        loop.add_signal_handler(SIGTERM, lambda: self.handle_signal(SIGTERM))
 
     async def start(self):
         self.stopped = False
@@ -88,7 +90,11 @@ class Worker:
         await self.events.worker_shutdown.publish(event)
 
         cancelled: Set[asyncio.Task] = set()
-        all_tasks = self.tasks_jobs.union(self.tasks_schedulers)
+        all_tasks = (
+            set(self.tasks_jobs.values())
+            .union(self.tasks_job_monitors)
+            .union(self.tasks_schedulers)
+        )
         for task in all_tasks:
             if task.cancel():
                 cancelled.add(task)
@@ -110,8 +116,8 @@ class Worker:
             return
         loop = asyncio.get_running_loop()
         task = loop.create_task(self.run_job(job))
-        self.tasks_jobs.add(task)
-        task.add_done_callback(lambda t: self.tasks_jobs.remove(t))
+        self.tasks_jobs[job.id] = task
+        task.add_done_callback(lambda t: pop_value(self.tasks_jobs, t))
 
     async def request_new_jobs(self):
         active_jobs = len(self.tasks_jobs)
@@ -121,14 +127,10 @@ class Worker:
 
     async def run_job(self, job: Job):
         async def update_job():
-            async def inner():
-                await self.broker.update_job(job)
-
-            update_coro = inner()
+            update_coro = self.broker.update_job(job)
             try:
                 await asyncio.shield(update_coro)
             except asyncio.CancelledError as e:
-                await update_coro
                 raise e
 
         try:
@@ -136,14 +138,43 @@ class Worker:
             job.status = Status.InProgress
             await update_job()
 
+            await self.start_job_monitor(job)
             job.return_value = await job.signature()
             job.status = Status.Successful
+        except asyncio.CancelledError as e:
+            return
         except Exception as e:
             job.return_value = e
             job.status = Status.Failed
         finally:
             job.time_completed = datetime.datetime.now(tz=datetime.timezone.utc)
             await update_job()
+
+    async def run_job_monitor(self, job: Job):
+        job_id = job.id
+
+        async def cancel_job():
+            task = self.tasks_jobs.get(job_id)
+            if task and task.cancel():
+                await task
+
+        while True:
+            (curr_job,) = await self.broker.get_jobs(job_id)
+            # NOTE: edge case - job record expired, but still in progress
+            if not curr_job:
+                await cancel_job()
+                break
+            if curr_job.status == Status.Cancelled:
+                await cancel_job()
+            if curr_job.status.is_complete():
+                break
+            await asyncio.sleep(self.poll_rate)
+
+    async def start_job_monitor(self, job: Job):
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(self.run_job_monitor(job))
+        self.tasks_job_monitors.add(task)
+        task.add_done_callback(lambda t: self.tasks_job_monitors.remove(t))
 
     async def run_scheduler(self, scheduled_task: ScheduledTask):
         dt_prev = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -168,3 +199,12 @@ class Worker:
             await self.main()
         except asyncio.CancelledError:
             pass
+
+
+Value = TypeVar("Value")
+
+
+def pop_value(data: dict[str, Value], v: Value):
+    for key, value in dict(data).items():
+        if value == v:
+            data.pop(key, None)

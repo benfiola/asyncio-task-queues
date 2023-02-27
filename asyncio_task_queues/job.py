@@ -12,6 +12,9 @@ class Status(str, Enum):
     Failed = "failed"
     Cancelled = "cancelled"
 
+    def is_complete(self) -> bool:
+        return self in {self.Successful, self.Failed, self.Cancelled}
+
 
 class Job:
     id: str

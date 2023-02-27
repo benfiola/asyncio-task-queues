@@ -202,6 +202,9 @@ class Broker(BaseBroker):
             for job_id in job_ids:
                 (job,) = await self.get_jobs(job_id)
                 if not job:
+                    # NOTE: edge case - job record expired, but still in queue
+                    for queue_key in queue_keys:
+                        await self.get_redis().zrem(queue_key, job_id)
                     continue
                 if await self.has_job_heartbeat(job):
                     continue
