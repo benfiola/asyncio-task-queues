@@ -26,11 +26,11 @@ class Broker(BaseBroker):
 
     def __init__(
         self,
+        redis_url: str,
         *,
         expiry_job_heartbeat: Optional[datetime.timedelta] = None,
         expiry_lock: Optional[datetime.timedelta] = None,
         expiry_worker_heartbeat: Optional[datetime.timedelta] = None,
-        redis_url: str,
         redis_cls: Optional[Type[redis.asyncio.Redis]] = None,
         serializer_cls: Optional[Type[Serializer]] = None,
     ):
