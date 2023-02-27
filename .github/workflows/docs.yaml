@@ -22,8 +22,16 @@ jobs:
       - name: check out repo
         uses: actions/checkout@v3
 
+      - name: set up python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: install dependencies
+        run: pip install ".[dev]"
+
       - name: build docs
-        run: ./docker.sh docs.sh
+        run: ./docs.sh
 
       - name: upload pages artifact
         uses: actions/upload-pages-artifact@v1
