@@ -57,7 +57,7 @@ async def async_task(val: str):
 
 # run a worker
 async def worker():
-    await asyncio.run_worker({Queue.Default, Queue.Other})
+    await app.run_worker("worker-1", {Queue.Default, Queue.Other})
 
 
 # enqueue jobs as a client
