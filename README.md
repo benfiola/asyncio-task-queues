@@ -50,7 +50,7 @@ app = App(__name__, broker=broker, queue_default=Queue.Default)
 
 
 # define a scheduled task
-@app.scheduled_task(Schedule.cron("* * * * *"))
+@app.scheduled_task(Schedule.cron("* * * * *"), kwargs={"val": 2})
 async def async_task(val: str):
     print(f"{val}")
 
