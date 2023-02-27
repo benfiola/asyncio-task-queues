@@ -38,7 +38,7 @@ class Worker:
         name: str,
         poll_rate: Optional[float] = None,
         queues: Set[str],
-        scheduled_tasks: Optional[List[ScheduledTask]]
+        scheduled_tasks: Optional[List[ScheduledTask]],
     ):
         concurrency = concurrency or 1
         events = events or EventSystem()

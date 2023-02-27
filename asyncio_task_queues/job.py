@@ -33,7 +33,7 @@ class Job:
         status: Status,
         time_completed: Optional[datetime.datetime],
         time_enqueued: datetime.datetime,
-        time_started: Optional[datetime.datetime]
+        time_started: Optional[datetime.datetime],
     ):
         self.id = id
         self.signature = signature

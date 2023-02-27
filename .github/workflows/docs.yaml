@@ -1,7 +1,6 @@
-name: tests
+name: docs
 
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -15,15 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  "run-tests":
+  "deploy-docs":
     runs-on: "ubuntu-latest"
     strategy:
       fail-fast: false
-      matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10"]
     steps:
       - name: check out repo
         uses: actions/checkout@v3
 
-      - name: run test script
-        run: PYTHON_VERSION=${{matrix.python-version}} ./dev.sh tests
+      - name: build docs
+        run: ./dev.sh docs
+
+      - name: upload pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: site
+
+      - name: deploy pages
+        uses: actions/deploy-pages@v1

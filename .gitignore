@@ -7,10 +7,13 @@
 /*
 !/.github
 !/asyncio_task_queues
+!/docs
 !/tests
 !/.gitignore
+!/dev.Dockerfile
+!/dev.entrypoint.sh
+!/dev.sh
+!/mkdocs.yml
 !/pyproject.toml
 !/README.md
 !/setup.py
-!/test.Dockerfile
-!/test.sh
