@@ -62,6 +62,6 @@ async def worker():
 
 # enqueue jobs as a client
 async def client():
-    task = app.create_task(async_task).with_args(val=1)
+    task = app.create_task(async_task).with_args(val=1).with_options(queue=Queue.Other)
     await app.enqueue(task)
 ```
