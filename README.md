@@ -23,7 +23,7 @@ NOTE: Still in very early stages.
   - _Flask_ [Blueprint](./asyncio_task_queues/flask.py)
 - Extensible architecture
   - Abstract [Broker](./asyncio_task_queues/broker.py) interface for unique broker implementations
-  - [Middleware](./asyncio_task_queues/middleware.py) for in-flight modifications
+  - Abstract [Backend](./asyncio_task_queues/backend.py) interface for unique job storage implementations
   - [Event System](./asyncio_task_queues/event.py) for monitoring
 - Strongly-typed
   - _ParamSpec_/_TypeVar_-backed task definitions
@@ -51,8 +51,9 @@ class Queue(str, Enum):
 
 # create broker and app
 redis_url = "redis://:password@localhost:6379/0"
+backend = redis.Backend(redis_url)
 broker = redis.Broker(redis_url)
-app = App(__name__, broker=broker, queue_default=Queue.Default)
+app = App(__name__, backend=backend, broker=broker, queue_default=Queue.Default)
 
 
 # define a scheduled task
@@ -69,5 +70,5 @@ async def worker():
 # enqueue jobs as a client
 async def client():
     task = app.create_task(async_task).with_args(val=1)
-    await app.enqueue(task)
+    await app.broker.enqueue(task)
 ```

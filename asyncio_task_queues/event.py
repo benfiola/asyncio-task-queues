@@ -1,94 +1,90 @@
 import asyncio
+import datetime
 
-from asyncio_task_queues.types import Dict, Generic, Literal, Protocol, TypeVar, cast
+from asyncio_task_queues.types import Dict, Protocol, Set, Type, TypeVar
 
 
 class Event:
-    type: str = cast(str, None)
+    event_id: str
+    event_time: datetime.datetime
 
-    def __init__(self):
-        if self.__class__.type is None:
-            raise RuntimeError(f"class does not have type set: {self.__class__}")
-        self.type = self.__class__.type
-
-
-ECEvent = TypeVar("ECEvent", bound=Event, contravariant=True)
+    def __init__(self, *, event_id: str):
+        self.event_id = event_id
+        self.event_time = datetime.datetime.utcnow()
 
 
-class EventCallback(Protocol[ECEvent]):
-    async def __call__(self, event: ECEvent):
-        ...
-
-
-ESEvent = TypeVar("ESEvent", bound=Event)
-
-
-class EventSource(Generic[ESEvent]):
-    subscribers: Dict[str, EventCallback[ESEvent]]
-
-    def __init__(self):
-        self.subscribers = {}
-
-    def get_callback_id(self, callback: EventCallback[ESEvent]):
-        module = getattr(callback, "__module__")
-        name = getattr(callback, "__name__")
-        if not all([module, name]):
-            raise ValueError(f"unable to get id for callback: {callback}")
-
-        return f"{module}:{name}"
-
-    def subscribe(self, callback: EventCallback[ESEvent]):
-        id = self.get_callback_id(callback)
-        self.subscribers[id] = callback
-
-    def unsubscribe(self, callback: EventCallback[ESEvent]):
-        id = self.get_callback_id(callback)
-        self.subscribers.pop(id)
-
-    async def publish(self, event: ESEvent):
-        tasks = []
-        for callback in self.subscribers.values():
-            tasks.append(callback(event))
-        await asyncio.gather(*tasks)
-
-
-class JobStatusChangeEvent(Event):
-    type: Literal["job-status-change"] = "job-status-change"
-
+class JobSaveEvent(Event):
     job_id: str
-    status: str
+    job_status: str
 
-    def __init__(self, *, job_id: str, status: str):
+    def __init__(self, job_id: str, job_status: str):
+        super().__init__(event_id="job-save")
         self.job_id = job_id
-        self.status = status
+        self.job_status = job_status
 
 
-class WorkerShutdownEvent(Event):
-    type: Literal["worker-shutdown"] = "worker-shutdown"
-
+class WorkerJobStartEvent(Event):
+    job_id: str
     worker_name: str
 
-    def __init__(self, *, worker_name: str):
-        super().__init__()
+    def __init__(self, job_id: str, worker_name: str):
+        super().__init__(event_id="worker-job-start")
+        self.job_id = job_id
+        self.worker_name = worker_name
+
+
+class WorkerJobFinishEvent(Event):
+    job_id: str
+    job_status: str
+    worker_name: str
+
+    def __init__(self, job_id: str, job_status: str, worker_name: str):
+        super().__init__(event_id="worker-job-finish")
+        self.job_id = job_id
+        self.job_status = job_status
         self.worker_name = worker_name
 
 
 class WorkerStartEvent(Event):
-    type: Literal["worker-start"] = "worker-start"
-
     worker_name: str
 
-    def __init__(self, *, worker_name: str):
-        super().__init__()
+    def __init__(self, worker_name: str):
+        super().__init__(event_id="worker-start")
         self.worker_name = worker_name
 
 
-class EventSystem:
-    job_status_change: EventSource[JobStatusChangeEvent]
-    worker_shutdown: EventSource[WorkerShutdownEvent]
-    worker_start: EventSource[WorkerStartEvent]
+class WorkerStopEvent(Event):
+    worker_name: str
+
+    def __init__(self, worker_name: str):
+        super().__init__(event_id="worker-stop")
+        self.worker_name = worker_name
+
+
+CallbackEvent = TypeVar("CallbackEvent", bound=Event, contravariant=True)
+
+
+class Callback(Protocol[CallbackEvent]):
+    async def __call__(self, event: CallbackEvent):
+        ...
+
+
+SystemEvent = TypeVar("SystemEvent", bound=Event)
+
+
+class System:
+    subscribers: Dict[Type[Event], Set[Callback]]
 
     def __init__(self):
-        self.job_status_change = EventSource()
-        self.worker_shutdown = EventSource()
-        self.worker_start = EventSource()
+        self.subscribers = {}
+
+    def subscribe(self, event_cls: Type[SystemEvent], callback: Callback[SystemEvent]):
+        callbacks = self.subscribers.setdefault(event_cls, set())
+        callbacks.add(callback)
+
+    async def publish(self, event: Event):
+        callbacks = self.subscribers.get(event.__class__, set())
+        tasks = []
+        for callback in callbacks:
+            tasks.append(callback(event))
+        await asyncio.gather(*tasks)

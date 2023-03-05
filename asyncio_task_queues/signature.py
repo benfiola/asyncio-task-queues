@@ -3,6 +3,7 @@ import functools
 import importlib
 import inspect
 
+from asyncio_task_queues.context import Context, InjectedContext
 from asyncio_task_queues.types import (
     Callable,
     Dict,
@@ -14,11 +15,11 @@ from asyncio_task_queues.types import (
     cast,
 )
 
-SignaturePS = ParamSpec("SignaturePS")
-SignatureRV = TypeVar("SignatureRV")
+PS = ParamSpec("PS")
+RV = TypeVar("RV")
 
 
-class Signature(Generic[SignaturePS, SignatureRV]):
+class Signature(Generic[PS, RV]):
     args: Tuple
     function: str
     kwargs: Dict
@@ -40,34 +41,42 @@ class Signature(Generic[SignaturePS, SignatureRV]):
     @classmethod
     def from_function(
         cls,
-        function: Callable[SignaturePS, SignatureRV],
+        function: Callable[PS, RV],
         args: Optional[Tuple] = None,
         kwargs: Optional[Dict] = None,
-    ) -> "Signature[SignaturePS, SignatureRV]":
+    ) -> "Signature[PS, RV]":
         return cls(
             args=args,
             function=f"{function.__module__}:{function.__qualname__}",
             kwargs=kwargs,
         )
 
-    async def __call__(self) -> SignatureRV:
+    async def __call__(self, context: Optional[Context] = None) -> RV:
         function = self.ensure_coroutine(self.import_function())
-        return await function(*self.args, **self.kwargs)
 
-    def with_args(
-        self, *args: SignaturePS.args, **kwargs: SignaturePS.kwargs
-    ) -> "Signature[SignaturePS, SignatureRV]":
+        signature = inspect.signature(function)
+        bound = signature.bind_partial(*self.args, **self.kwargs)
+        for parameter in signature.parameters.values():
+            if parameter.annotation == Context:
+                context = context or bound.arguments[parameter.name]
+                if not context:
+                    raise ValueError("context not provided")
+                bound.arguments[parameter.name] = context
+
+        return await function(**bound.arguments)
+
+    def with_args(self, *args: PS.args, **kwargs: PS.kwargs) -> "Signature[PS, RV]":
         self.args = args
         self.kwargs = kwargs
         return self
 
-    def import_function(self) -> Callable[SignaturePS, SignatureRV]:
+    def import_function(self) -> Callable[PS, RV]:
         module_path, attr_path = self.function.split(":")
         module = importlib.import_module(module_path)
         function = module
         for attr in attr_path.split("."):
             function = getattr(function, attr)
-        return cast(Callable[SignaturePS, SignatureRV], function)
+        return cast(Callable[PS, RV], function)
 
     def ensure_coroutine(self, func: Callable) -> Callable:
         to_return = func

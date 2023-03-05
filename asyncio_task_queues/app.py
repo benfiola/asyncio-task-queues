@@ -1,14 +1,20 @@
+import asyncio
 from enum import Enum
 from uuid import uuid4
 
+from asyncio_task_queues.backend import Backend
 from asyncio_task_queues.broker import Broker
-from asyncio_task_queues.event import EventSystem
+from asyncio_task_queues.chain import Chain
+from asyncio_task_queues.event import System as EventSystem
+from asyncio_task_queues.group import Group
 from asyncio_task_queues.job import Job
-from asyncio_task_queues.middleware import Middleware
 from asyncio_task_queues.schedule import Schedule
-from asyncio_task_queues.signature import Signature, SignaturePS, SignatureRV
+from asyncio_task_queues.signature import PS as SignaturePS
+from asyncio_task_queues.signature import RV as SignatureRV
+from asyncio_task_queues.signature import Signature
 from asyncio_task_queues.task import ScheduledTask, Task
 from asyncio_task_queues.types import (
+    Any,
     Callable,
     Dict,
     Generic,
@@ -26,9 +32,9 @@ AQueue = TypeVar("AQueue", bound=Enum)
 
 
 class App(Generic[AQueue]):
+    backend: Backend
     broker: Broker
     events: EventSystem
-    middleware: List[Middleware]
     name: str
     queue_default: AQueue
     scheduled_tasks: Dict[str, ScheduledTask]
@@ -38,29 +44,26 @@ class App(Generic[AQueue]):
         self,
         name: str,
         *,
+        backend: Backend,
         broker: Broker,
-        middleware: Optional[List[Middleware]] = None,
         queue_default: AQueue,
         worker_cls: Optional[Type[Worker]] = None,
     ):
-        middleware = middleware or []
         worker_cls = worker_cls or Worker
 
+        self.backend = backend
         self.broker = broker
         self.events = EventSystem()
-        self.middleware = middleware
         self.name = name
         self.queue_default = queue_default
         self.scheduled_tasks = {}
         self.worker_cls = worker_cls
 
+        self.backend.bind(self)
         self.broker.bind(self)
 
     async def initialize(self):
-        await self.broker.initialize()
-
-    async def ping(self) -> str:
-        return "pong"
+        await asyncio.gather(self.backend.initialize(), self.broker.initialize())
 
     def create_task(
         self,
@@ -76,6 +79,12 @@ class App(Generic[AQueue]):
         queue = queue or self.queue_default
 
         return Task(id=id, signature=signature, queue=queue)
+
+    def create_chain(self, *tasks: Task) -> "Chain[AQueue]":
+        return Chain(id=str(uuid4()), queue=self.queue_default, tasks=list(tasks))
+
+    def create_group(self, *tasks: Task) -> "Group[AQueue]":
+        return Group(id=str(uuid4()), queue=self.queue_default, tasks=list(tasks))
 
     def register_scheduled_task(self, scheduled_task: ScheduledTask):
         if scheduled_task.id in self.scheduled_tasks:
@@ -133,9 +142,6 @@ class App(Generic[AQueue]):
 
         return inner
 
-    async def enqueue(self, task: Task) -> Job:
-        return await self.broker.enqueue_task(task)
-
     async def run_worker(
         self,
         name: str,
@@ -150,7 +156,6 @@ class App(Generic[AQueue]):
             broker=self.broker,
             concurrency=concurrency,
             events=self.events,
-            middleware=self.middleware,
             name=name,
             poll_rate=poll_rate,
             queues={q.value for q in queues},

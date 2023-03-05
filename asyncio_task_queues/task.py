@@ -2,7 +2,9 @@ from enum import Enum
 from uuid import uuid4
 
 from asyncio_task_queues.schedule import Schedule
-from asyncio_task_queues.signature import Signature, SignaturePS, SignatureRV
+from asyncio_task_queues.signature import PS as SignaturePS
+from asyncio_task_queues.signature import RV as SignatureRV
+from asyncio_task_queues.signature import Signature
 from asyncio_task_queues.types import Any, Generic, Optional, TypeVar, Union, cast
 
 TaskQueue = TypeVar("TaskQueue")

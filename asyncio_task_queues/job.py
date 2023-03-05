@@ -2,18 +2,8 @@ import datetime
 from enum import Enum
 
 from asyncio_task_queues.signature import Signature
+from asyncio_task_queues.status import Status
 from asyncio_task_queues.types import Any, Optional
-
-
-class Status(str, Enum):
-    Queued = "queued"
-    InProgress = "in-progress"
-    Successful = "success"
-    Failed = "failed"
-    Cancelled = "cancelled"
-
-    def is_complete(self) -> bool:
-        return self in {self.Successful, self.Failed, self.Cancelled}
 
 
 class Job:

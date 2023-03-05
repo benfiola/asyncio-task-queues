@@ -1,25 +1,30 @@
 import asyncio
 import datetime
+import logging
 from signal import SIGINT, SIGTERM, Signals
+from typing import Coroutine
 
 from asyncio_task_queues.broker import Broker
+from asyncio_task_queues.context import Context
+from asyncio_task_queues.event import System as EventSystem
 from asyncio_task_queues.event import (
-    EventSystem,
-    JobStatusChangeEvent,
-    WorkerShutdownEvent,
+    WorkerJobFinishEvent,
+    WorkerJobStartEvent,
     WorkerStartEvent,
+    WorkerStopEvent,
 )
 from asyncio_task_queues.job import Job, Status
-from asyncio_task_queues.middleware import Middleware
+from asyncio_task_queues.status import StatusException
 from asyncio_task_queues.task import ScheduledTask
-from asyncio_task_queues.types import Any, Dict, List, Optional, Set, TypeVar
+from asyncio_task_queues.types import Dict, List, Optional, Set, TypeVar
+
+logger = logging.getLogger(__name__)
 
 
 class Worker:
     broker: Broker
     concurrency: int
     events: EventSystem
-    middleware: List[Middleware]
     name: str
     poll_rate: float
     queues: Set[str]
@@ -34,23 +39,19 @@ class Worker:
         *,
         broker: Broker,
         concurrency: Optional[int] = None,
-        events: Optional[EventSystem] = None,
-        middleware: Optional[List[Middleware]] = None,
+        events: EventSystem,
         name: str,
         poll_rate: Optional[float] = None,
         queues: Set[str],
         scheduled_tasks: Optional[List[ScheduledTask]],
     ):
         concurrency = concurrency or 1
-        events = events or EventSystem()
-        middleware = middleware or []
         poll_rate = poll_rate or 0.5
         scheduled_tasks = scheduled_tasks or []
 
         self.broker = broker
         self.concurrency = concurrency
         self.events = events
-        self.middleware = middleware
         self.name = name
         self.poll_rate = poll_rate
         self.queues = queues
@@ -77,8 +78,7 @@ class Worker:
         self.stopped = False
         await self.install_signal_handlers()
         await self.start_schedulers()
-        event = WorkerStartEvent(worker_name=self.name)
-        await self.events.worker_start.publish(event)
+        await self.events.publish(WorkerStartEvent(worker_name=self.name))
 
     async def loop(self):
         while not self.stopped:
@@ -86,9 +86,6 @@ class Worker:
             await asyncio.sleep(self.poll_rate)
 
     async def shutdown(self):
-        event = WorkerShutdownEvent(worker_name=self.name)
-        await self.events.worker_shutdown.publish(event)
-
         cancelled: Set[asyncio.Task] = set()
         all_tasks = (
             set(self.tasks_jobs.values())
@@ -99,6 +96,7 @@ class Worker:
             if task.cancel():
                 cancelled.add(task)
         await asyncio.gather(*cancelled)
+        await self.events.publish(WorkerStopEvent(worker_name=self.name))
 
     async def stop(self):
         self.stopped = True
@@ -111,7 +109,7 @@ class Worker:
             await self.shutdown()
 
     async def request_new_job(self) -> Optional[Job]:
-        job = await self.broker.request_job(self.name, self.queues)
+        job = await self.broker.worker_request_job(self.name, self.queues)
         if not job:
             return
         loop = asyncio.get_running_loop()
@@ -126,49 +124,51 @@ class Worker:
                 break
 
     async def run_job(self, job: Job):
-        async def update_job():
-            update_coro = self.broker.update_job(job)
-            try:
-                await asyncio.shield(update_coro)
-            except asyncio.CancelledError as e:
-                raise e
-
         try:
+            await self.events.publish(
+                WorkerJobStartEvent(job_id=job.id, worker_name=self.name)
+            )
             job.time_started = datetime.datetime.now(tz=datetime.timezone.utc)
             job.status = Status.InProgress
-            await update_job()
+            await shield(self.broker.worker_update_job(self.name, job))
 
             await self.start_job_monitor(job)
-            job.return_value = await job.signature()
+            context = Context(broker=self.broker, job=job)
+            job.return_value = await job.signature(context=context)
             job.status = Status.Successful
+        except StatusException as e:
+            job.return_value = e.return_value
+            job.status = e.status
         except asyncio.CancelledError as e:
-            return
+            job.return_value = None
+            job.status = Status.Cancelled
         except Exception as e:
             job.return_value = e
             job.status = Status.Failed
         finally:
             job.time_completed = datetime.datetime.now(tz=datetime.timezone.utc)
-            await update_job()
+            await shield(self.broker.worker_update_job(self.name, job))
+            await self.events.publish(
+                WorkerJobFinishEvent(
+                    job_id=job.id, job_status=job.status.value, worker_name=self.name
+                )
+            )
 
     async def run_job_monitor(self, job: Job):
         job_id = job.id
 
-        async def cancel_job():
-            task = self.tasks_jobs.get(job_id)
-            if task and task.cancel():
-                await task
-
+        curr_job = job
         while True:
-            (curr_job,) = await self.broker.get_jobs(job_id)
-            # NOTE: edge case - job record expired, but still in progress
-            if not curr_job:
-                await cancel_job()
+            if not curr_job or curr_job.status == Status.Cancelling:
+                task = self.tasks_jobs.get(job_id)
+                if task and task.cancel():
+                    await task
+
+            if not curr_job or curr_job.status.is_complete():
                 break
-            if curr_job.status == Status.Cancelled:
-                await cancel_job()
-            if curr_job.status.is_complete():
-                break
+
             await asyncio.sleep(self.poll_rate)
+            (curr_job,) = await self.broker.get_backend().get_jobs(job_id)
 
     async def start_job_monitor(self, job: Job):
         loop = asyncio.get_running_loop()
@@ -208,3 +208,14 @@ def pop_value(data: dict[str, Value], v: Value):
     for key, value in dict(data).items():
         if value == v:
             data.pop(key, None)
+
+
+async def shield(coro: Coroutine):
+    loop = asyncio.get_running_loop()
+    coro_task = loop.create_task(coro)
+
+    try:
+        await asyncio.shield(coro_task)
+    except asyncio.CancelledError as e:
+        await coro_task
+        raise e
