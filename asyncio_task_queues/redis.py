@@ -1,6 +1,5 @@
 import datetime
 import logging
-from uuid import uuid4
 
 import redis.asyncio
 import redis.asyncio.client
@@ -241,8 +240,8 @@ class Broker(BaseBroker):
         await self.update_worker_heartbeat(worker_name)
 
         async with self.get_lock("request-job"):
-            queue_keys = list(map(self.get_queue_key, queues))
-            job_ids_bytes: list[bytes] = await self.get_redis().zunion(queue_keys)
+            queue_keys = List(map(self.get_queue_key, queues))
+            job_ids_bytes: List[bytes] = await self.get_redis().zunion(queue_keys)
             job_ids = map(lambda b: b.decode("utf-8"), job_ids_bytes)
 
             job = None

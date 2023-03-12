@@ -204,7 +204,7 @@ class Worker:
 Value = TypeVar("Value")
 
 
-def pop_value(data: dict[str, Value], v: Value):
+def pop_value(data: Dict[str, Value], v: Value):
     for key, value in dict(data).items():
         if value == v:
             data.pop(key, None)
